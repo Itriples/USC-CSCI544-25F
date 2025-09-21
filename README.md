@@ -39,38 +39,116 @@ See datasets [here](https://drive.google.com/drive/folders/1ZOYpTUa82_jCcxIdTmyr
 	- Mathew, B., et al. (2021). Hatexplain: A Benchmark Dataset for Explainable Hate Speech Detection. AAAI
 
 
-## 🔹 Application-Oriented Projects
 
-### 1. Multilingual Sentiment Analysis Extension
-**Motivation:**  
-Sentiment analysis is a well-studied NLP task, but most benchmarks focus on English. Extending models to low-resource or multilingual settings is both practical and impactful.  
+# Multi agent research
+Title:
+Hierarchical Multi-Agent QA with Specialized Roles and a Verifier for Attribution Reliability
 
-**Literature Review:**  
-- Devlin et al. (2019). *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding*. NAACL.  
-- Mozafari et al. (2019). *A BERT-based Transfer Learning Approach for Hate Speech Detection*. NLPCC.
+1. Motivation
 
-### 2. Information Extraction in Legal Documents
-**Motivation:**  
-Legal documents are dense and domain-specific, making them ideal for testing Named Entity Recognition (NER) and Relation Extraction (RE). Applying NLP models here supports real-world applications like contract review and case law analysis.  
+Large Language Models (LLMs) often hallucinate or provide unsupported claims in complex QA tasks. While multi-agent systems have shown promise, they still lack attribution reliability — the ability to ground every answer in verifiable evidence. Recent industry systems (e.g., Anthropic’s Research Assistant with a Citation Agent) highlight this gap, but systematic academic evaluation is missing.
 
-**Literature Review:**  
-- Chalkidis et al. (2020). *LEGAL-BERT: The Muppets straight out of Law School*. Findings of EMNLP.  
-- Beltagy et al. (2019). *SciBERT: A Pretrained Language Model for Scientific Text*. EMNLP.
+Our project aims to investigate whether combining (a) role specialization (Searcher, Analyst, Writer) and (b) an independent Verifier/Citation Agent under a centralized Orchestrator can significantly improve accuracy–attribution–cost trade-offs in QA tasks.
 
-## 🔹 Research-Oriented Projects
+2. Literature Review
 
-### 3. Prompt Robustness in Adversarial Settings
-**Motivation:**  
-Prompt-based learning is widely adopted, but prompts are fragile under adversarial modifications (e.g., typos, paraphrases). This project studies how robust different prompting methods are under noisy conditions.  
+Anthropic (2025). How we built a multi-agent research system.
+[Anthropic Blog] – 描述 Lead Researcher + Citation Agent 架构，强调证据溯源和宽度优先研究查询。
 
-**Literature Review:**  
-- Jin et al. (2020). *Is BERT Really Robust? A Strong Baseline for Natural Language Attack on Text Classification and Entailment*. AAAI.  
-- Zhao et al. (2021). *Calibrate Before Use: Improving Few-Shot Performance of Language Models*. ICML.
+Jin et al. (2025). Talk Hierarchically, Act Structurally: Structured Communication Protocols for Multi-Agent LLM Systems. arXiv:2502.11098.
+提出 structured communication + hierarchical refinement，有效减少协作幻觉。
 
-### 4. Cross-Modal Knowledge Transfer (Vision → NLP)
-**Motivation:**  
-Techniques from computer vision (e.g., Vision Transformer pooling) may improve long-context NLP tasks such as document classification or summarization. Exploring such cross-modal transfer can reveal novel design insights.  
+Zhang et al. (2025). MACT: Multi-agent Cooperative Tuning for Complex Reasoning with LLMs. NAACL 2025.
+用多代理协作处理表格问答，证明 planner–executor–tool 结合的有效性。
 
-**Literature Review:**  
-- Dosovitskiy et al. (2021). *An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)*. ICLR.  
-- Beltagy et al. (2020). *Longformer: The Long-Document Transformer*. arXiv.
+Li et al. (2023). CAMEL: Communicative Agents for “Mind” Exploration. ICLR 2023.
+经典工作，提出多代理角色扮演框架。
+
+Wu et al. (2023). AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation. Microsoft Research.
+多代理框架，广泛用于 orchestrator–worker 实现。
+
+Sun et al. (2024). MegaAgent: Scaling LLM-based Multi-Agent Collaboration without Predefined SOPs. arXiv:2408.09955.
+探索上百代理的自治与动态生/杀 agent 管理。
+
+Zhou et al. (2024). CollabEval: Enhancing LLM-as-a-Judge via Multi-Agent Collaboration. Amazon Science.
+提出三阶段评估 (初评–讨论–定夺)，提升一致性和鲁棒性。
+
+Rashkin et al. (2021). ASQA: Factually Consistent Long-Form Question Answering. NAACL 2021.
+提出 Attribution-based QA 数据集，适合评测 citation precision/recall。
+
+Kamalloo et al. (2023). Evaluating Attributed QA: Can LLMs Reason with Cited Evidence? arXiv:2310.12848.
+系统提出 Attribution QA 指标（Citation F1、Attribution Recall）。
+
+Manakul et al. (2023). SelfCheckGPT: Zero-Resource Black-Box Hallucination Detection for Generative Large Language Models. ACL 2023.
+用异质采样检测 LLM 幻觉，可作为 Verifier 评价参考。
+
+Chen et al. (2023). QAFactEval: Improved QA-based Factual Consistency Evaluation for Summarization. EMNLP 2023.
+用于句子-证据蕴含度检验，常用于 QA/总结验证。
+
+Gupta et al. (2022). FEVER: A Large-scale Dataset for Fact Extraction and Verification. NAACL 2022.
+事实核查数据集，标注支持/反驳/无法判断与证据句。
+
+Yang et al. (2018). HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering. EMNLP 2018.
+多跳问答数据集，含 supporting facts，可用于 attribution 评测。
+
+3. Proposed Method
+
+Architecture:
+
+Orchestrator: decomposes task, assigns roles.
+
+Sub-agents:
+
+Searcher retrieves evidence,
+
+Analyst links evidence to sub-questions,
+
+Writer synthesizes final answer with inline citations.
+
+Verifier/Citation Agent: checks if every statement is properly supported (using AIS/QAFactEval), rejects unsupported outputs → triggers rework.
+
+Structured Protocol: every intermediate/final answer must include evidence slots (document ID + passage).
+
+4. Experiments
+
+Datasets:
+
+HotpotQA (multi-hop QA with supporting facts)
+
+FEVER (fact verification with labeled evidence)
+
+(Optional) ASQA / ELI5-subset (long-form QA with attribution labels)
+
+Metrics:
+
+Accuracy: EM/F1 (HotpotQA), Label Accuracy (FEVER)
+
+Attribution: AIS, Citation Precision/Recall/F1
+
+Cost: tokens, #rounds, latency
+
+Baselines:
+
+Single-agent RAG/ReAct
+
+Multi-agent (no specialization)
+
+Multi-agent (specialization, no verifier)
+
+5. Plan (Milestones)
+
+Week 1–2: Literature survey + single-agent baseline (RAG/ReAct).
+
+Week 3–4: Implement Orchestrator + specialized Sub-agents; run HotpotQA baseline.
+
+Week 5–6: Add Verifier/Citation Agent + structured protocol; full evaluation on HotpotQA + FEVER.
+
+Week 7–8: Ablation (remove verifier, remove specialization, remove evidence slots); analyze attribution–accuracy–cost trade-off; finalize report.
+
+6. Expected Contributions
+
+Empirical evidence that Verifier + specialization improves attribution reliability.
+
+Quantitative analysis of accuracy–attribution–cost trade-offs.
+
+Ablation showing which components contribute most (roles, evidence slots, verifier).
