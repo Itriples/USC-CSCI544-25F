@@ -235,3 +235,47 @@ Use Case: A startup in EV charging infrastructure wants competitor + trend insig
 2.	Analyst Agent → summarizes growth signals using World Bank EV adoption stats + Google Trends (“EV charging station near me”).
 3.	Writer Agent → generates SWOT (Strength: rising demand; Weakness: capital-intensive infra; Opportunity: policy subsidies; Threat: Tesla Supercharger dominance).
 4.	Verifier Agent → cross-checks claims against news feeds (GDELT/NewsAPI) and funding numbers from Crunchbase.
+
+# RAG Truth Retrieval
+1. Core: simulate the process of: LLM with prompt → RAG retrieval → evidence choose method → get evidence → text generation (with evidence chain) -> Generated text → hallucination detection → evidence-hallucination correlation analysis
+2. Dataset: RAGTruth, HotpotQA (with label), MS MARCO (without label)
+3. Experiment variable: evidence choose strategy
+  a)	top-k vs MMR
+  b)	cross-encoder
+  c)	rewrite
+  d)	context compress
+4. Experiment validation:
+  a)	Whether evidence choose strategy choose correct evidence?
+      i.	Recall of gold evidence (chosen rate of gold evidence over total gold evidence)
+     ii.	Precision of gold evidence (chosen rate of gold evidence over total chosen evidence)
+    iii.	Baseline: Recall@k, nDCG@k, MRR
+  b)	Is chosen evidence consist with data?
+      i.	Evidence faithfulness: 
+     ii.    Supporting facts hit rate (joint F1) with labeled dataset, RAGAS faithfulness / answer relevancy / context precision with unlabeled dataset
+  c)	Under SAME MODEL and PROMPT, how chosen evidence affect the generated text?
+      i.	End to end precision: EM / F1 (directly compare generation and ground truth?)
+  d)	Efficiency of different strategy:
+      i.	End to end delay
+     ii.	Context token
+  e)	Hallucination Impact Analysis 
+      i.	General hallucination rate statistics
+     ii.	Hallucination types distribution of RAGTruth
+    iii.	Evidence quality vs Hallucination
+5. Experiment Setup:
+  a)	Fixed LLM model, prompt template
+  b)	Building up vector database
+  c)	Programming evidence choosing algorithm
+  d)	Composing different choosing method
+      i.	Only top-k
+     ii.	Only MMR
+    iii.	Only cross-encoder
+     iv.	Top-k + compression
+      v.	MMR + cross-encoder
+  e)	For each of above strategy, measure:
+      i.	General: Recall@k, MRR, nDCG
+     ii.	For RAGTruth, HotpotQA: supporting facts hit rate
+    iii.	For MS MARCO: RAGAS
+     iv.	General: EM/F1/ROUGE
+      v.	Delay
+  f)	Hallucination detection pipeline 
+      基于提示的GPT判断 + RAGTruth标签对比
