@@ -152,3 +152,86 @@ Empirical evidence that Verifier + specialization improves attribution reliabili
 Quantitative analysis of accuracy–attribution–cost trade-offs.
 
 Ablation showing which components contribute most (roles, evidence slots, verifier).
+
+7. Datasets
+
+Potential Usecase 1: FEVER (Thorne et al., 2018; Gupta et al., 2022 revision)
+- Task: Fact verification — given a claim, classify as SUPPORTED, REFUTED, or NOT ENOUGH INFO using Wikipedia evidence.
+- Why relevant: Directly evaluates attribution reliability since evidence must justify label.
+- Agentic Example:
+  - Claim: “The Eiffel Tower is taller than the Empire State Building.”
+  - Workflow:
+	1.	Searcher retrieves Wikipedia entries for Eiffel Tower and Empire State Building.
+	2.	Analyst extracts relevant heights (324m vs 381m).
+	3.	Writer produces: “The claim is REFUTED: Eiffel Tower (324m) < Empire State Building (381m) [Wiki:Eiffel Tower; Wiki:Empire State Building].”
+	4.	Verifier confirms that numeric comparison is present in retrieved evidence.
+
+Public Datasources to Use
+- Wikipedia dumps (for HotpotQA/FEVER, readily available via Hugging Face Datasets or ElasticSearch-backed retrieval).
+- HotpotQA supporting facts (via Hugging Face Datasets: hotpot_qa).
+- FEVER dataset (via Hugging Face Datasets: fever).
+
+
+**Potential Usecase 2: ASQA (Attribution QA) (Rashkin et al., 2021)**
+- Task: Long-form QA with attribution labels — requires generating comprehensive answers with fine-grained citations.
+- Why relevant: Tests if the multi-agent system can maintain coverage + reliability at scale in long-form outputs.
+- Agentic Example:
+  - Question: “Explain the contributions of Ada Lovelace to computing.”
+  - Workflow:
+	1.	Orchestrator splits into facets: early life, collaboration with Babbage, significance of notes on Analytical Engine.
+	2.	Searcher retrieves multiple relevant passages.
+	3.	Analyst links evidence to each sub-facet.
+	4.	Writer synthesizes multi-paragraph answer with inline citations after each claim.
+	5.	Verifier ensures every factual statement (e.g., “first computer programmer,” “notes on Analytical Engine”) is attributed.
+
+Public Datasources to Use:
+- ASQA dataset (via Hugging Face Datasets: asqa).
+- Optional: QAFactEval synthetic pairs (Chen et al., 2023) to test verifier robustness.
+
+ 
+**Potential Usecase 3: Multi-Agent Market Research**
+
+1. Competitor Data (Scraper Agent)
+	•	Crunchbase Open Data Map (https://data.crunchbase.com/)
+	•	Company funding, investors, industry tags.
+	•	CB Insights (limited public reports) (https://www.cbinsights.com/research/)
+	•	Industry trend snapshots.
+	•	Alternative: Kaggle Startup Datasets (e.g., startups, companies, startup-investments) — cleaned competitor/funding info.
+	•	SEC EDGAR Filings (https://www.sec.gov/edgar.shtml)
+	•	Public company financials & competitor positioning.
+
+2. Market Trend Summarization (Analyst Agent)
+	•	World Bank Data (https://data.worldbank.org/)
+	•	Macroeconomic and sectoral data.
+	•	OECD Data Explorer (https://data-explorer.oecd.org/)
+	•	Industry performance & policy trends.
+	•	Statista Public Reports (free subsets) (https://www.statista.com/)
+	•	Consumer adoption, market penetration (limited free tier).
+	•	Google Trends API (pytrends)
+	•	Consumer interest signals, seasonal product demand.
+
+3. SWOT Analysis Generation (Writer Agent)
+	•	Builds on above sources but benefits from:
+	•	Kaggle “Business/Industry Reports” Datasets
+	•	E.g., retail, fintech, SaaS growth trends.
+	•	IBISWorld Summaries (free previews)
+	•	Sector strengths/weaknesses at macro level.
+	•	PitchBook public blog insights
+	•	Emerging market opportunities.
+
+4. Validation (Verifier Agent)
+	•	News & Fact-Checking Sources:
+	•	GDELT Project (https://www.gdeltproject.org/) — global news events, entity mentions.
+	•	NewsAPI (https://newsapi.org/) — business/financial news feeds.
+	•	Kaggle: Fake News / Fact-checking Datasets (for testing citation verification).
+	•	Benchmark Datasets for Factual QA:
+	•	FEVER (claim verification).
+	•	QAFactEval (evidence-supported factuality checking).
+
+**Example Workflow with Public Data**
+
+Use Case: A startup in EV charging infrastructure wants competitor + trend insights.
+1.	Scraper Agent → pulls competitor data from Crunchbase API (funding rounds of EV charging companies).
+2.	Analyst Agent → summarizes growth signals using World Bank EV adoption stats + Google Trends (“EV charging station near me”).
+3.	Writer Agent → generates SWOT (Strength: rising demand; Weakness: capital-intensive infra; Opportunity: policy subsidies; Threat: Tesla Supercharger dominance).
+4.	Verifier Agent → cross-checks claims against news feeds (GDELT/NewsAPI) and funding numbers from Crunchbase.
