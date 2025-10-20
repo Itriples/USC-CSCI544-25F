@@ -10,6 +10,11 @@ d_ff=32
 master_port=00097
 num_process=8
 
+use_lora=true
+lora_r=8
+lora_alpha=32
+lora_dropout=0.05
+
 comment='TimeLLM-M4'
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
@@ -35,7 +40,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
   --task_name short_term_forecast \
@@ -60,7 +69,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
   --task_name short_term_forecast \
@@ -85,7 +98,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
   --task_name short_term_forecast \
@@ -110,7 +127,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
   --task_name short_term_forecast \
@@ -135,7 +156,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_m4.py \
@@ -161,4 +186,8 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --loss 'SMAPE' \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout

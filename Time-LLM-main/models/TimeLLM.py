@@ -2,7 +2,7 @@ from math import sqrt
 
 import torch
 import torch.nn as nn
-
+from peft import LoraConfig, get_peft_model
 from transformers import LlamaConfig, LlamaModel, LlamaTokenizer, GPT2Config, GPT2Model, GPT2Tokenizer, BertConfig, \
     BertModel, BertTokenizer
 from layers.Embed import PatchEmbedding
@@ -162,6 +162,30 @@ class Model(nn.Module):
 
         for param in self.llm_model.parameters():
             param.requires_grad = False
+
+        if configs.use_lora:
+            if configs.llm_model == 'LLAMA':
+                target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+            elif configs.llm_model == 'GPT2':
+                target_modules = ["c_attn", "c_proj", "fc_in", "fc_out"]
+            elif configs.llm_model == 'BERT':
+                target_modules = ["query", "key", "value", "output.dense", "intermediate.dense"]
+            else:
+                raise Exception('LLM model is not defined')
+
+            lora_cfg = LoraConfig(
+                r=configs.lora_r,
+                lora_alpha=configs.lora_alpha,
+                lora_dropout=configs.lora_dropout,
+                target_modules=target_modules,
+                bias="none",
+                task_type="FEATURE_EXTRACTION"
+            )
+            self.llm_model = get_peft_model(self.llm_model, lora_cfg)
+            try:
+                self.llm_model.print_trainable_parameters()
+            except Exception:
+                pass
 
         if configs.prompt_domain:
             self.description = configs.content

@@ -9,6 +9,11 @@ batch_size=24
 d_model=32
 d_ff=128
 
+use_lora=true
+lora_r=8
+lora_alpha=32
+lora_dropout=0.05
+
 comment='TimeLLM-ETTh1'
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_main.py \
@@ -35,7 +40,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --llm_layers $llama_layers \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_main.py \
   --task_name long_term_forecast \
@@ -61,7 +70,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate 0.02 \
   --llm_layers $llama_layers \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_main.py \
   --task_name long_term_forecast \
@@ -88,7 +101,11 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate 0.001 \
   --llm_layers $llama_layers \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
 
 accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_process --main_process_port $master_port run_main.py \
   --task_name long_term_forecast \
@@ -114,4 +131,8 @@ accelerate launch --multi_gpu --mixed_precision bf16 --num_processes $num_proces
   --learning_rate $learning_rate \
   --llm_layers $llama_layers \
   --train_epochs $train_epochs \
-  --model_comment $comment
+  --model_comment $comment \
+  --use_lora $use_lora \
+  --lora_r $lora_r \
+  --lora_alpha $lora_alpha \
+  --lora_dropout $lora_dropout
