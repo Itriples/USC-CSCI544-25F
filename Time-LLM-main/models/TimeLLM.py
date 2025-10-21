@@ -165,7 +165,7 @@ class Model(nn.Module):
 
         if configs.use_lora:
             if configs.llm_model == 'LLAMA':
-                target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+                target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
             elif configs.llm_model == 'GPT2':
                 target_modules = ["c_attn", "c_proj", "fc_in", "fc_out"]
             elif configs.llm_model == 'BERT':
