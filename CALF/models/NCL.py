@@ -10,7 +10,7 @@ from torch.utils.data import Sampler, BatchSampler, Dataset
 
 class ConsecutiveBatchSampler(BatchSampler):
     '''
-    Given a dataset length N and a batch size,
+    Given a datasets length N and a batch size,
     each output is a "non-overlapping continuous batch" of the form [0,1,2,...,B-1], [B, B+1, ..., 2B-1], ...
     If you want to "slide continuous batches", change the step size of the range to the stride.
     '''
@@ -24,7 +24,7 @@ class ConsecutiveBatchSampler(BatchSampler):
 
         self.last_start = dataset_len - batch_size
         if self.last_start < 0 and drop_last:
-            raise ValueError("dataset too small for given batch_size")
+            raise ValueError("datasets too small for given batch_size")
 
     def __iter__(self) -> Iterator[list[int]]:
         i = 0
