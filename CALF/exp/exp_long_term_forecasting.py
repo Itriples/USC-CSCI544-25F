@@ -3,6 +3,7 @@ from exp.exp_basic import Exp_Basic
 from utils.tools import EarlyStopping, adjust_learning_rate, visual
 from utils.metrics import metric
 from utils.cmLoss import cmLoss
+from models.NCL import NeighbourhoodContrastiveLoss, NCL
 import torch
 import torch.nn as nn
 from torch import optim
@@ -33,7 +34,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
     def _select_optimizer(self):
         param_dict = [
             {"params": [p for n, p in self.model.named_parameters() if p.requires_grad and '_proj' in n], "lr": 1e-4},
-            {"params": [p for n, p in self.model.named_parameters() if p.requires_grad and '_proj' not in n], "lr": self.args.learning_rate}
+            {"params": [p for n, p in self.model.named_parameters() if p.requires_grad and '_proj' not in n],
+             "lr": self.args.learning_rate}
         ]
         model_optim = optim.Adam([param_dict[1]], lr=self.args.learning_rate)
         loss_optim = optim.Adam([param_dict[0]], lr=self.args.learning_rate)
@@ -41,14 +43,29 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         return model_optim, loss_optim
 
     def _select_criterion(self):
-        criterion = cmLoss(self.args.feature_loss, 
-                           self.args.output_loss, 
-                           self.args.task_loss, 
-                           self.args.task_name, 
-                           self.args.feature_w, 
-                           self.args.output_w, 
+        criterion = cmLoss(self.args.feature_loss,
+                           self.args.output_loss,
+                           self.args.task_loss,
+                           self.args.task_name,
+                           self.args.feature_w,
+                           self.args.output_w,
                            self.args.task_w)
         return criterion
+
+    def _build_ncl(self):
+        ncl = NeighbourhoodContrastiveLoss(temperature=0.07, k=self.args.k, pool=False)
+        return ncl
+
+    def get_neighbour_batch(self, dataset, idxes, device, k=1):
+        neighbour_batch = []
+        owner_rows = []
+        for row, i in enumerate(idxes.tolist()):
+            for j in range(i - k, i + k + 1):
+                if i != j and 0 <= j < len(dataset):
+                    xj, _, _, _, _ = dataset[j]
+                    neighbour_batch.append(torch.tensor(xj, device=device))
+                    owner_rows.append(row)
+        return torch.stack(neighbour_batch, dim=0), owner_rows
 
     def train(self, setting):
         train_data, train_loader = self._get_data(flag='train')
@@ -66,7 +83,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         model_optim, loss_optim = self._select_optimizer()
         criterion = self._select_criterion()
-        
+        ncl = self._build_ncl()
+
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(model_optim, T_max=self.args.tmax, eta_min=1e-8)
 
         for epoch in range(self.args.train_epochs):
@@ -74,19 +92,27 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             train_loss = []
 
             self.model.train()
+            ncl.train()
+
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, idxes) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
                 loss_optim.zero_grad()
 
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
-                
-                outputs_dict = self.model(batch_x)
-                
-                loss = criterion(outputs_dict, batch_y)
 
+                outputs_dict = self.model(batch_x)
+
+                supervised_loss = criterion(outputs_dict, batch_y)
+
+                neighbour_batch, owner_rows = self.get_neighbour_batch(train_data, idxes, self.device, self.args.k)
+                time_embd_v2, _, _ = self.model.embd(neighbour_batch)
+                time_embd_v1 = outputs_dict['time_embd_v1']
+                ncl_loss = ncl(time_embd_v1, time_embd_v2, owner_rows)
+
+                loss = supervised_loss + self.args.lambda_ncl * ncl_loss
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -135,7 +161,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         self.model.text_proj.eval()
 
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, idxes) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
 
@@ -184,14 +210,14 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, idxes) in enumerate(test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
                 outputs = self.model(batch_x[:, -self.args.seq_len:, :])
 
                 outputs_ensemble = outputs['outputs_time']
-                
+
                 outputs_ensemble = outputs_ensemble[:, -self.args.pred_len:, :]
                 batch_y = batch_y[:, -self.args.pred_len:, :]
 

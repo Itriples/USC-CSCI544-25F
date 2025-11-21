@@ -1,6 +1,7 @@
 from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_M4, PSMSegLoader, \
     MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader
 from data_provider.uea import collate_fn
+from models.NCL import ConsecutiveBatchSampler, NeighborPairBatchSampler
 from torch.utils.data import DataLoader
 
 data_dict = {
@@ -84,9 +85,14 @@ def data_provider(args, flag, vali=False):
             percent=args.percent
         )
         print(flag, len(data_set))
+
+        # consecutive_sampler = ConsecutiveBatchSampler(len(data_set), batch_size=batch_size)
+        # pair_sampler = NeighborPairBatchSampler(len(data_set), batch_size=batch_size)
+
         data_loader = DataLoader(
             data_set,
             batch_size=batch_size,
+            sampler=None,
             shuffle=shuffle_flag,
             num_workers=args.num_workers,
             drop_last=drop_last)

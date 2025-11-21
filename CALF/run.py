@@ -124,6 +124,10 @@ if __name__ == '__main__':
     parser.add_argument('--zero_shot', type=int, default=0, help='1 for training zero shot')
     parser.add_argument('--target_data', type=str, default="ETTm1", help='target data for zero shot')
 
+    # ncl
+    parser.add_argument('--k', type=int, default=1, help='sample k positive samples')
+    parser.add_argument('--lambda_ncl', type=float, default=0.1, help='hyperparameter of ncl')
+
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
