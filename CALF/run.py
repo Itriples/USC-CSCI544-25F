@@ -157,7 +157,7 @@ if __name__ == '__main__':
         for ii in range(args.itr):
             # setting record of experiments
             exp = Exp(args)  # set experiments
-            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_gpt{}_{}'.format(
+            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_k{}_{}_gpt{}_{}'.format(
                 args.task_name,
                 args.model_id,
                 args.model,
@@ -174,6 +174,7 @@ if __name__ == '__main__':
                 args.factor,
                 args.embed,
                 args.distil,
+                args.k,
                 args.des, 
                 args.gpt_layers,
                 ii)
@@ -186,7 +187,7 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_gpt{}_{}'.format(
+        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_k{}_{}_gpt{}_{}'.format(
             args.task_name,
             args.model_id,
             args.model,
@@ -203,6 +204,7 @@ if __name__ == '__main__':
             args.factor,
             args.embed,
             args.distil,
+            args.k,
             args.des, 
             args.gpt_layers,
             ii)
