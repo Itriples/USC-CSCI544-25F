@@ -1,19 +1,19 @@
 import math
 import random
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Sampler, BatchSampler, Dataset
+from torch.utils.data import Sampler, BatchSampler
 
 
 class ConsecutiveBatchSampler(BatchSampler):
-    '''
-    Given a dataset length N and a batch size,
-    each output is a "non-overlapping continuous batch" of the form [0,1,2,...,B-1], [B, B+1, ..., 2B-1], ...
-    If you want to "slide continuous batches", change the step size of the range to the stride.
-    '''
+    """
+    Given a dataset length N and a batch size B,
+    each output is a non-overlapping continuous batch:
+    [0,1,...,B-1], [B,...,2B-1], ...
+    """
 
     def __init__(self, dataset_len: int, batch_size: int, drop_last: bool = True, stride: Optional[int] = None):
         super(ConsecutiveBatchSampler, self).__init__()
@@ -46,9 +46,7 @@ class ConsecutiveBatchSampler(BatchSampler):
 class NeighborPairBatchSampler(Sampler[list]):
     """
     For each batch: randomly select B/2 anchor points i,
-    and then incorporate their neighbors i + delta to form paired samples.
-    This way, any random point will be in the same batch as its consecutive neighbors,
-    facilitating NCL (Non-Clearing Count).
+    and then include their neighbors i + k to form pairs.
     """
 
     def __init__(self, dataset_len: int, batch_size: int, k: int = 1, drop_last: bool = True):
@@ -60,7 +58,6 @@ class NeighborPairBatchSampler(Sampler[list]):
         self.drop_last = drop_last
 
     def __iter__(self):
-        # Randomly shuffle all indexes that can be used as anchor points (ensuring there is a neighbor i+delta).
         anchors = list(range(0, self.N - self.k))
         random.shuffle(anchors)
         i = 0
@@ -74,7 +71,6 @@ class NeighborPairBatchSampler(Sampler[list]):
             yield batch
 
         if not self.drop_last and i < len(anchors):
-            # Remainder handling: Try to make them pair.
             remain = anchors[i:]
             batch = []
             for a in remain:
@@ -95,30 +91,35 @@ class NeighborPairBatchSampler(Sampler[list]):
 
 
 class TimeDataAugment(nn.Module):
+    """
+    Simple time-series augmentation: Gaussian jitter + optional random masking.
+    x is expected to be (B, S, D) (S can be time or channel dimension depending on usage).
+    """
+
     def __init__(self, jitter_std: float = 0.01, mask_ratio: float = 0.0):
         super(TimeDataAugment, self).__init__()
         self.jitter_std = jitter_std
         self.mask_ratio = mask_ratio
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Gaussian dithering
+        # Gaussian noise
         if self.jitter_std > 0:
-            noise = torch.rand_like(x) * self.jitter_std
+            noise = torch.randn_like(x) * self.jitter_std
             x = x + noise
-        # Randomized time mask (optional)
+        # Random mask (set some positions to 0)
         if self.mask_ratio > 0:
-            B, L, M = x.shape
-            mask_L = max(1, int(L * self.mask_ratio))
-            idx = torch.randint(0, L, (B, mask_L), device=x.device)
+            B, S, D = x.shape
+            mask_S = max(1, int(S * self.mask_ratio))
+            idx = torch.randint(0, S, (B, mask_S), device=x.device)
             x[torch.arange(B).unsqueeze(1), idx, :] = 0.0
         return x
 
 
 class Projector(nn.Module):
-    '''
-    Input: (B, D) or (B, M, D) pooled to (B, D)
-    Output: (B, d_proj)
-    '''
+    """
+    Input: (B, D)
+    Output: (B, proj_dim) normalized
+    """
 
     def __init__(self, in_dim: int, proj_dim: int = 256):
         super(Projector, self).__init__()
@@ -138,9 +139,9 @@ class Projector(nn.Module):
 
 class NeighbourhoodContrastiveLoss(nn.Module):
     """
-    Assume the samples within a batch are ordered chronologically.
-    Samples where |i-j| <= k (j≠i) are considered positive examples of i, and the rest are negative examples.
-    Supports two views: view1 and view2 (enhanced or different branch outputs).
+    NCL: samples within a batch are two "views".
+    x, y: (B, M, L)
+    owner_rows optionally defines which rows are positives.
     """
 
     def __init__(self, temperature: float = 0.07, k: int = 1, pool: bool = True):
@@ -149,10 +150,11 @@ class NeighbourhoodContrastiveLoss(nn.Module):
         self.k = k
         self.pool = pool
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, owner_rows: list[int] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, y: torch.Tensor, owner_rows: Optional[list[int]] = None) -> torch.Tensor:
         """
-        x, y: (B, M, L) Embeddings of two views (L2 normalized)
-        Return: scalar InfoNCE loss
+        x, y: (B, M, L)
+        owner_rows: optional list of length B2, owner_rows[j] = i means y[j] is positive for x[i].
+                    If None, we use identity (i ↔ i).
         """
         assert x.dim() == 3 and y.dim() == 3
         B1, M1, L1 = x.shape
@@ -161,64 +163,60 @@ class NeighbourhoodContrastiveLoss(nn.Module):
 
         device = x.device
 
-        # Construct the "owner" mask: owner_mask[i, j]=True indicates that y[j] is a positive instance of x[i]
-        owner_mask = torch.zeros((B1, B2), dtype=torch.bool, device=device)
-        for col, row in enumerate(owner_rows):
-            if row < B1:
-                owner_mask[row, col] = True
+        # Build owner mask
+        if owner_rows is None:
+            owner_mask = torch.eye(B1, B2, dtype=torch.bool, device=device)
+        else:
+            assert len(owner_rows) == B2, "owner_rows length must equal batch size of y (B2)."
+            owner_mask = torch.zeros((B1, B2), dtype=torch.bool, device=device)
+            for col, row in enumerate(owner_rows):
+                if 0 <= row < B1:
+                    owner_mask[row, col] = True
 
         if self.pool:
-            x = F.normalize(x.mean(dim=1), dim=-1)
-            y = F.normalize(y.mean(dim=1), dim=-1)
-
+            # Pool over M (channels)
+            x = F.normalize(x.mean(dim=1), dim=-1)  # (B1, L1)
+            y = F.normalize(y.mean(dim=1), dim=-1)  # (B2, L2)
             pos_mask = owner_mask
         else:
-            # Token level: No pooling
-            # Shape flattened into (B*M, L) and (C*M, L)
-            x = F.normalize(x.reshape(B1 * M1, L1), dim=-1)  # (BM, L)
-            y = F.normalize(y.reshape(B2 * M2, L2), dim=-1)  # (CM, L)
+            # Token-level
+            x = F.normalize(x.reshape(B1 * M1, L1), dim=-1)  # (B1*M1, L1)
+            y = F.normalize(y.reshape(B2 * M2, L2), dim=-1)  # (B2*M2, L2)
+            eye_M = torch.eye(M1, device=device, dtype=torch.bool)
+            pos_mask = torch.kron(owner_mask, eye_M)         # (B1*M1, B2*M2)
 
-            # Construct pos_mask for token-level positive examples: (BM, CM)
-            # Rule: Same anchor + same token id is a positive example
-            # First extend the owner_mask of (B,C) to the token level: Kronecker product (⊗) over the identity matrix I_M
-            eye_M = torch.eye(M1, device=device, dtype=torch.bool)  # (M, M)
-            pos_mask = torch.kron(owner_mask, eye_M)  # (B1*B2)⊗(M*M) = (BM, CM)
-
-        # (B1, B2) Similarity
         logits = torch.matmul(x, y.t()) / self.T
+        logits = logits - logits.max(dim=1, keepdim=True).values  # numerical stability
 
-        # Numerical stability: Subtract the max value of each row
-        logits = logits - logits.max(dim=1, keepdim=True).values
-
-        # For each i, take all positive examples j as the numerator (multiple positive examples are allowed)
-        # The denominator is all (positive + negative) samples
-        # Equivalent to InfoNCE with multiple positive examples:
         exp_logits = torch.exp(logits)
         pos_sum = (exp_logits * pos_mask.float()).sum(dim=1) + 1e-12
         total_sum = exp_logits.sum(dim=1) + 1e-12
+
         loss = -torch.log(pos_sum / total_sum).mean()
         return loss
 
 
 class NCL(nn.Module):
-    '''
-    The intermediate features of the CALF temporal branch are processed through pooling, projection, and NCL loss.
-    '''
+    """
+    NCL head for CALF: given two views of temporal features (B, M, d_model),
+    project and apply NeighbourhoodContrastiveLoss.
+    """
 
-    def __init__(self, d_model: int, proj_dim: int, temperature: float = 0.07, k: int = 1, pool: bool = True):
+    def __init__(self, d_model: int, proj_dim: int = 256, temperature: float = 0.07, k: int = 1, pool: bool = True):
         super(NCL, self).__init__()
         self.projector = Projector(d_model, proj_dim)
         self.ncl = NeighbourhoodContrastiveLoss(temperature, k, pool)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        '''
-        x, y : (B, M, d_model)`
-        Here, we perform average pooling on the M channels to obtain the sequence-level embedding (B, d_model).
-        Alternatively, we can skip pooling and use channel-level NCL (treating B*M as samples),
-        but then we need to simultaneously construct the neighborhood relationships of (B*M, B*M).
-        '''
+    def forward(self, x: torch.Tensor, y: torch.Tensor, owner_rows: Optional[list[int]] = None) -> torch.Tensor:
+        """
+        x, y: (B, M, d_model)
+        """
+        # Pool over M (channels) then project
+        x = self.projector(x.mean(dim=1))  # (B, proj_dim)
+        y = self.projector(y.mean(dim=1))  # (B, proj_dim)
 
-        # x = self.projector(x)
-        # y = self.projector(y)
+        # Lift back to (B, 1, proj_dim)
+        x = x.unsqueeze(1)
+        y = y.unsqueeze(1)
+        return self.ncl(x, y, owner_rows)
 
-        return self.ncl(x, y)

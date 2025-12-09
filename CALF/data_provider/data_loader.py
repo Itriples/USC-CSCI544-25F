@@ -20,7 +20,7 @@ class Dataset_ETT_hour(Dataset):
                  target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -80,7 +80,7 @@ class Dataset_ETT_hour(Dataset):
             data_stamp = df_stamp.drop(['date'], 1).values
         elif self.timeenc == 1:
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
-            data_stamp = data_stamp.transpose(1, 0) 
+            data_stamp = data_stamp.transpose(1, 0)
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
@@ -112,7 +112,7 @@ class Dataset_ETT_minute(Dataset):
                  target='OT', scale=True, timeenc=0, freq='t', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -145,7 +145,7 @@ class Dataset_ETT_minute(Dataset):
         border2s = [12 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 8 * 30 * 24 * 4]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
-        
+
         if self.set_type == 0:
             border2 = (border2 - self.seq_len) * self.percent // 100 + self.seq_len
 
@@ -191,7 +191,8 @@ class Dataset_ETT_minute(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        # Return index as well (needed by NCL neighbour mining)
+        return seq_x, seq_y, seq_x_mark, seq_y_mark, index
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
@@ -206,7 +207,7 @@ class Dataset_Custom(Dataset):
                  target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -225,7 +226,7 @@ class Dataset_Custom(Dataset):
         self.timeenc = timeenc
         self.freq = freq
         self.percent = percent
-        
+
         self.root_path = root_path
         self.data_path = data_path
         self.__read_data__()
@@ -406,9 +407,9 @@ class PSMSegLoader(Dataset):
     def __len__(self):
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -417,9 +418,9 @@ class PSMSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -449,9 +450,9 @@ class MSLSegLoader(Dataset):
     def __len__(self):
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -460,9 +461,9 @@ class MSLSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -493,9 +494,9 @@ class SMAPSegLoader(Dataset):
 
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -504,9 +505,9 @@ class SMAPSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -534,9 +535,9 @@ class SMDSegLoader(Dataset):
     def __len__(self):
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -545,9 +546,9 @@ class SMDSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -586,9 +587,9 @@ class SWATSegLoader(Dataset):
         """
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -597,9 +598,9 @@ class SWATSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -669,7 +670,7 @@ class UEAloader(Dataset):
             data_paths = list(filter(lambda x: re.search(flag, x), data_paths))
         input_paths = [p for p in data_paths if os.path.isfile(p) and p.endswith('.ts')]
         if len(input_paths) == 0:
-            pattern='*.ts'
+            pattern = '*.ts'
             raise Exception("No .ts files found using pattern: '{}'".format(pattern))
 
         all_df, labels_df = self.load_single(input_paths[0])  # a single file contains dataset
@@ -678,7 +679,7 @@ class UEAloader(Dataset):
 
     def load_single(self, filepath):
         df, labels = load_from_tsfile_to_dataframe(filepath, return_separate_X_and_y=True,
-                                                             replace_missing_vals_with='NaN')
+                                                   replace_missing_vals_with='NaN')
         labels = pd.Series(labels, dtype="category")
         self.class_names = labels.cat.categories
         labels_df = pd.DataFrame(labels.cat.codes,
@@ -728,3 +729,4 @@ class UEAloader(Dataset):
 
     def __len__(self):
         return len(self.all_IDs)
+

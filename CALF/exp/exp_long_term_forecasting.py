@@ -1,17 +1,18 @@
+import os
+import time
+import warnings
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import optim
+
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
 from utils.tools import EarlyStopping, adjust_learning_rate, visual
 from utils.metrics import metric
 from utils.cmLoss import cmLoss
-from models.NCL import NeighbourhoodContrastiveLoss, NCL
-import torch
-import torch.nn as nn
-from torch import optim
-import os
-import time
-import warnings
-import numpy as np
-import torch.nn.functional as F
 
 warnings.filterwarnings('ignore')
 
@@ -20,6 +21,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
     def __init__(self, args):
         super(Exp_Long_Term_Forecast, self).__init__(args)
 
+    # ----------------------------------------------------------------------
+    # Model / Data / Optimizer / Loss
+    # ----------------------------------------------------------------------
     def _build_model(self):
         model = self.model_dict[self.args.model].Model(self.args, self.device).float()
 
@@ -32,41 +36,42 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         return data_set, data_loader
 
     def _select_optimizer(self):
+        # keep the original param split logic:
+        #  - *_proj params (e.g. time_proj) can use a different LR
+        #  - other params use args.learning_rate
         param_dict = [
-            {"params": [p for n, p in self.model.named_parameters() if p.requires_grad and '_proj' in n], "lr": 1e-4},
-            {"params": [p for n, p in self.model.named_parameters() if p.requires_grad and '_proj' not in n],
-             "lr": self.args.learning_rate}
+            {
+                "params": [p for n, p in self.model.named_parameters()
+                           if p.requires_grad and '_proj' in n],
+                "lr": 1e-4,
+            },
+            {
+                "params": [p for n, p in self.model.named_parameters()
+                           if p.requires_grad and '_proj' not in n],
+                "lr": self.args.learning_rate,
+            },
         ]
+        # original code: separate optimizers for proj vs non-proj
         model_optim = optim.Adam([param_dict[1]], lr=self.args.learning_rate)
         loss_optim = optim.Adam([param_dict[0]], lr=self.args.learning_rate)
 
         return model_optim, loss_optim
 
     def _select_criterion(self):
-        criterion = cmLoss(self.args.feature_loss,
-                           self.args.output_loss,
-                           self.args.task_loss,
-                           self.args.task_name,
-                           self.args.feature_w,
-                           self.args.output_w,
-                           self.args.task_w)
+        criterion = cmLoss(
+            self.args.feature_loss,
+            self.args.output_loss,
+            self.args.task_loss,
+            self.args.task_name,
+            self.args.feature_w,
+            self.args.output_w,
+            self.args.task_w,
+        )
         return criterion
 
-    def _build_ncl(self):
-        ncl = NeighbourhoodContrastiveLoss(temperature=0.07, k=self.args.k, pool=False)
-        return ncl
-
-    def get_neighbour_batch(self, dataset, idxes, device, k=1):
-        neighbour_batch = []
-        owner_rows = []
-        for row, i in enumerate(idxes.tolist()):
-            for j in range(i - k, i + k + 1):
-                if i != j and 0 <= j < len(dataset):
-                    xj, _, _, _, _ = dataset[j]
-                    neighbour_batch.append(torch.tensor(xj, device=device))
-                    owner_rows.append(row)
-        return torch.stack(neighbour_batch, dim=0), owner_rows
-
+    # ----------------------------------------------------------------------
+    # Train / Vali / Test
+    # ----------------------------------------------------------------------
     def train(self, setting):
         train_data, train_loader = self._get_data(flag='train')
         vali_data, vali_loader = self._get_data(flag='val')
@@ -77,24 +82,24 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             os.makedirs(path)
 
         time_now = time.time()
-
         train_steps = len(train_loader)
         early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
 
         model_optim, loss_optim = self._select_optimizer()
         criterion = self._select_criterion()
-        ncl = self._build_ncl()
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(model_optim, T_max=self.args.tmax, eta_min=1e-8)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            model_optim, T_max=self.args.tmax, eta_min=1e-8
+        )
 
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
 
             self.model.train()
-            ncl.train()
-
             epoch_time = time.time()
+
+            # NOTE: for ETTh1, loader yields: batch_x, batch_y, batch_x_mark, batch_y_mark, idxes
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, idxes) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
@@ -103,20 +108,18 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
+                # Forward: CALF model returns a dict including 'outputs_time' and 'ncl_loss'
                 outputs_dict = self.model(batch_x)
 
                 supervised_loss = criterion(outputs_dict, batch_y)
-
-                neighbour_batch, owner_rows = self.get_neighbour_batch(train_data, idxes, self.device, self.args.k)
-                time_embd_v2, _, _ = self.model.embd(neighbour_batch)
-                time_embd_v1 = outputs_dict['time_embd_v1']
-                ncl_loss = ncl(time_embd_v1, time_embd_v2, owner_rows)
+                ncl_loss = outputs_dict['ncl_loss']  # internal NCL loss from the model
 
                 loss = supervised_loss + self.args.lambda_ncl * ncl_loss
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
-                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
+                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(
+                        i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)
                     print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
@@ -133,8 +136,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
+            print(
+                "Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} "
+                "Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
+                    epoch + 1, train_steps, train_loss, vali_loss, test_loss
+                )
+            )
 
             if self.args.cos:
                 scheduler.step()
@@ -147,7 +154,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 print("Early stopping")
                 break
 
-        best_model_path = path + '/' + 'checkpoint.pth'
+        best_model_path = os.path.join(path, 'checkpoint.pth')
         self.model.load_state_dict(torch.load(best_model_path))
 
         return self.model
@@ -155,10 +162,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
 
-        self.model.in_layer.eval()
-        self.model.out_layer.eval()
-        self.model.time_proj.eval()
-        self.model.text_proj.eval()
+        # put whole model in eval mode
+        self.model.eval()
 
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, idxes) in enumerate(vali_loader):
@@ -179,15 +184,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 true = batch_y.detach().cpu()
 
                 loss = F.mse_loss(pred, true)
-
                 total_loss.append(loss)
 
         total_loss = np.average(total_loss)
 
-        self.model.in_layer.train()
-        self.model.out_layer.train()
-        self.model.time_proj.train()
-        self.model.text_proj.train()
+        # back to train mode
+        self.model.train()
 
         return total_loss
 
@@ -200,7 +202,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         test_data, test_loader = self._get_data(flag='test')
         if test:
             print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
+            self.model.load_state_dict(
+                torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth'))
+            )
 
         preds = []
         trues = []
@@ -214,10 +218,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
+                # ensure we only feed the last seq_len time steps
                 outputs = self.model(batch_x[:, -self.args.seq_len:, :])
 
                 outputs_ensemble = outputs['outputs_time']
-
                 outputs_ensemble = outputs_ensemble[:, -self.args.pred_len:, :]
                 batch_y = batch_y[:, -self.args.pred_len:, :]
 
@@ -226,6 +230,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
+
                 if i % 20 == 0:
                     input = batch_x.detach().cpu().numpy()
                     if test_data.scale and self.args.inverse:
@@ -252,8 +257,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         f = open("result_long_term_forecast.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}'.format(mse, mae))
-        f.write('\n')
-        f.write('\n')
+        f.write('\n\n')
         f.close()
 
         np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
@@ -261,3 +265,4 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         np.save(folder_path + 'true.npy', trues)
 
         return
+
