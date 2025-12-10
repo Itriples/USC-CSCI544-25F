@@ -101,6 +101,12 @@ parser.add_argument('--use_amp', action='store_true', help='use automatic mixed 
 parser.add_argument('--llm_layers', type=int, default=6)
 parser.add_argument('--percent', type=int, default=100)
 
+# lora
+parser.add_argument('--use_lora', type=bool, default=False, help='open LoRA module')
+parser.add_argument('--lora_r', type=int, default=8, help='LoRA configs r')
+parser.add_argument('--lora_alpha', type=int, default=32, help='LoRA configs alpha')
+parser.add_argument('--lora_dropout', type=float, default=0.05, help='LoRA configs dropout')
+
 args = parser.parse_args()
 ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
 deepspeed_plugin = DeepSpeedPlugin(hf_ds_config='./ds_config_zero2.json')
