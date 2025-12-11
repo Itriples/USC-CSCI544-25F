@@ -20,7 +20,7 @@ class Dataset_ETT_hour(Dataset):
                  target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -112,7 +112,7 @@ class Dataset_ETT_minute(Dataset):
                  target='OT', scale=True, timeenc=0, freq='t', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -145,7 +145,7 @@ class Dataset_ETT_minute(Dataset):
         border2s = [12 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 8 * 30 * 24 * 4]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
-        
+
         if self.set_type == 0:
             border2 = (border2 - self.seq_len) * self.percent // 100 + self.seq_len
 
@@ -206,7 +206,7 @@ class Dataset_Custom(Dataset):
                  target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None, percent=100):
         # size [seq_len, label_len, pred_len]
         # info
-        if size == None:
+        if size is None:
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -343,7 +343,7 @@ class Dataset_M4(Dataset):
         insample = np.zeros((self.seq_len, 1))
         insample_mask = np.zeros((self.seq_len, 1))
         outsample = np.zeros((self.pred_len + self.label_len, 1))
-        outsample_mask = np.zeros((self.pred_len + self.label_len, 1))  # m4 datasets
+        outsample_mask = np.zeros((self.pred_len + self.label_len, 1))  # m4 dataset
 
         sampled_timeseries = self.timeseries[index]
         cut_point = np.random.randint(low=max(1, len(sampled_timeseries) - self.window_sampling_limit),
@@ -582,7 +582,7 @@ class SWATSegLoader(Dataset):
 
     def __len__(self):
         """
-        Number of images in the object datasets.
+        Number of images in the object dataset.
         """
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
@@ -669,16 +669,16 @@ class UEAloader(Dataset):
             data_paths = list(filter(lambda x: re.search(flag, x), data_paths))
         input_paths = [p for p in data_paths if os.path.isfile(p) and p.endswith('.ts')]
         if len(input_paths) == 0:
-            pattern='*.ts'
+            pattern = '*.ts'
             raise Exception("No .ts files found using pattern: '{}'".format(pattern))
 
-        all_df, labels_df = self.load_single(input_paths[0])  # a single file contains datasets
+        all_df, labels_df = self.load_single(input_paths[0])  # a single file contains dataset
 
         return all_df, labels_df
 
     def load_single(self, filepath):
         df, labels = load_from_tsfile_to_dataframe(filepath, return_separate_X_and_y=True,
-                                                             replace_missing_vals_with='NaN')
+                                                   replace_missing_vals_with='NaN')
         labels = pd.Series(labels, dtype="category")
         self.class_names = labels.cat.categories
         labels_df = pd.DataFrame(labels.cat.codes,
@@ -728,3 +728,4 @@ class UEAloader(Dataset):
 
     def __len__(self):
         return len(self.all_IDs)
+

@@ -63,7 +63,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             for j in range(i - k, i + k + 1):
                 if i != j and 0 <= j < len(dataset):
                     xj, _, _, _, _ = dataset[j]
-                    neighbour_batch.append(torch.tensor(xj, dtype=torch.float32, device=device))
+                    neighbour_batch.append(torch.tensor(xj, device=device))
                     owner_rows.append(row)
         return torch.stack(neighbour_batch, dim=0), owner_rows
 
